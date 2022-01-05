@@ -81,11 +81,10 @@ from matplotlib import pyplot as plt
 ages = set(df['AGE'])
 data = pandas.merge(df.groupby(['YEAR', "AGE"], as_index=False).aggregate({'DEATH':'sum'}), df_tot)
 data['RATIO'] = data['DEATH']/data['TOT']
-for age in sorted(ages):
-    ax = plt.gca()
+fix, axes = plt.subplots(len(ages), 1, figsize=(10,30))
+for age, ax in zip(sorted(ages), axes):
     ax.set_title(age)
     data[data['AGE']==age].plot(kind='bar', y='RATIO', x='YEAR', ax=ax, legend=False)
-    plt.show()
 ```
 
 ```python
