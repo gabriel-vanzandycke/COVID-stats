@@ -39,52 +39,98 @@ for col in ["CD_RGN_REFNIS", "MS_SEX_", "CHAP_COD"]:
 
 url = "https://statbel.fgov.be/sites/default/files/files/opendata/deathday/DEMO_DEATH_OPEN.xlsx"
 df2 = read_cached("DEMO_DEATH_OPEN.pickle", url, pandas.read_excel)
-df2 = df2.rename(columns={"CD_AGEGROUP": "AGE", "NR_YEAR": "YEAR", "DT_DATE": "MONTH", "MS_NUM_DEATH": "DEATH"})
-df2['MONTH'] = df2['MONTH'].transform(lambda x: x.month)
-for col in ["CD_ARR", "CD_PROV", "CD_REGIO", "CD_SEX", "NR_WEEK"]:
+df2 = df2.rename(columns={"CD_AGEGROUP": "AGE", "MS_NUM_DEATH": "DEATH"})
+df2['YEAR'] = df2['DT_DATE'].transform(lambda x: x.year)
+df2['MONTH'] = df2['DT_DATE'].transform(lambda x: x.month)
+for col in ["CD_ARR", "CD_PROV", "CD_REGIO", "CD_SEX", "NR_WEEK", "NR_YEAR", "DT_DATE"]:
     del df2[col]
 
-df = pandas.concat([df1, df2])
-df = df.groupby(['MONTH', 'YEAR', 'AGE'], as_index=False).aggregate({'DEATH': 'sum'})
-pickle.dump(df, open("death_month_sex_age_2000_2021.pickle", "wb"))
+# This contains Cause-of-death, but only until 2018 :-/
+#url = "https://statbel.fgov.be/sites/default/files/files/opendata/COD/opendata_COD_cause.xlsx"
+#df2 = read_cached("opendata_COD_cause.pickle", url, pandas.read_excel)
+#df2 = df2.rename(columns={"CD_AGE": "AGE", "COUNT": "DEATH"})
+#for col in ["CD_RGN_REFNIS", "MS_SEX_", "CHAP_COD"]:
+#    del df2[col]
+
+total_death_df = pandas.concat([df1, df2]).groupby(['YEAR', 'AGE'], as_index=False).aggregate({'DEATH': 'sum'})
 ```
 
 ```python
-import re
 import numpy as np
-from urllib.request import Request, urlopen
+import re
 
-# WARNING /!\ data after 2019 is probably an extrapolation and I don't trust 100% data before 2019
-def read_csv(year):
-    url = f"https://www.populationpyramid.net/api/pp/56/{year}/?csv=true"
-    req = Request(url)
-    req.add_header('User-Agent', 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:77.0) Gecko/20100101 Firefox/77.0')
-    content = urlopen(req)
-    df = pandas.read_csv(content)
-    df = df.rename(columns={'Age': 'AGE'})
-    df['TOT'] = df['M'] + df['F']
-    del df['M']
-    del df['F']
-    i = lambda s: int(re.search(r'\d+', s).group())
-    df['AGE'] = df['AGE'].transform(
-        lambda x:['0-24','25-44','45-64','65-74','75-84','85+'][np.argmin(np.array([0,25,45,65,85,200]) < i(x))]
-    )
-    df = df.groupby('AGE', as_index=False).aggregate({'TOT':'sum'})
-    df['YEAR'] = year
-    return df
-df_tot = pandas.concat([read_csv(year) for year in range(2000,2022)])
+df = pandas.read_csv("/Users/gabriel/Downloads/export.csv")
+df = df[pandas.isna(df['Région'])]
+del df['Région']
+del df['Belgique']
+
+df = df.rename(columns={f"Population au 01 janvier {year}": str(year) for year in range(2000, 2022)})
+df = df.rename(columns={"Classe d’âges": "AGE"})
+i = lambda s: int(re.search(r'\d+', s).group())
+df['AGE'] = df['AGE'].transform(
+    lambda x: ['0-24','25-44','45-64','65-74','75-84','85+'][np.argwhere(i(x) >= np.array([0,25,45,65,75,85,200]))[-1,0]]
+)
+total_pop_df = df.melt(id_vars=["AGE"], var_name="YEAR", value_name="TOTAL").groupby(['YEAR', 'AGE'], as_index=False).aggregate({'TOTAL':'sum'})
+```
+
+```python
+url = "https://epistat.sciensano.be/Data/COVID19BE_MORT.csv"
+df = read_cached("COVID19BE_MORT.pickle", url, pandas.read_csv)
+for col in ["REGION", "SEX"]:
+    del df[col]
+df = df.rename(columns={"DATE": "MONTH", "AGEGROUP": "AGE", "DEATHS": "COVID"}) 
+df["YEAR"] = df["MONTH"].transform(lambda x: int(x[0:4]))
+df['MONTH'] = df['MONTH'].transform(lambda x: int(x[5:7]))
+covid_death_df = df.groupby(['YEAR', 'AGE'], as_index=False).aggregate({'COVID': 'sum'})
+```
+
+```python
+float(df[df['YEAR']==2020]['COVID']+df[df['YEAR']==2020]['OTHER'])
 ```
 
 ```python
 from matplotlib import pyplot as plt
+from functools import reduce
 
-ages = set(df['AGE'])
-data = pandas.merge(df.groupby(['YEAR', "AGE"], as_index=False).aggregate({'DEATH':'sum'}), df_tot)
-data['RATIO'] = data['DEATH']/data['TOT']
-fix, axes = plt.subplots(len(ages), 1, figsize=(10,30))
+dfs = [covid_death_df, total_death_df, total_pop_df]
+k = 'YEAR'
+for df in dfs:
+    df[k] = df[k].astype(int)
+data = reduce(lambda a,b: pandas.merge(a,b, on=['YEAR', 'AGE'], how='outer'), dfs).sort_values('YEAR')
+data = data[data['YEAR']<2022]
+ages = set(data['AGE'])
+data.fillna(0, inplace=True)
+
+df = data.copy()
+df['OTHER'] = (df['DEATH']-df['COVID'])/data['TOTAL']
+df['COVID'] = df['COVID']/df['TOTAL']
+del df['DEATH']
+del df['TOTAL']
+fig, axes = plt.subplots(len(ages)+1, 1, figsize=(10,30))
+fig.suptitle("Belgian death ratio per age group", y=0.89)
 for age, ax in zip(sorted(ages), axes):
-    ax.set_title(age)
-    data[data['AGE']==age].plot(kind='bar', y='RATIO', x='YEAR', ax=ax, legend=False)
+    ax.set_ylabel(age)
+    df[df['AGE']==age].plot(kind='bar', y=['OTHER', 'COVID'], x='YEAR', ax=ax, stacked=True)
+    ax.set_xlabel("")
+    ax.legend(loc='upper center')    
+
+ax = axes[-1]
+df = data.groupby(['YEAR'], as_index=False).aggregate({'COVID':'sum', 'DEATH':'sum', 'TOTAL':'sum'})
+df['OTHER'] = (df['DEATH']-df['COVID'])/df['TOTAL']
+df['COVID'] = df['COVID']/df['TOTAL']
+del df['DEATH']
+del df['TOTAL']
+df.plot(kind='bar', y=['OTHER', 'COVID'], x='YEAR', ax=ax, stacked=True)
+ax.set_ylabel("Total Belgian population")
+ax.set_xlabel("")
+ax.legend(loc='upper center')
+```
+
+```python
+cond = 95 > np.array([0,25,45,65,85,200])
+print(cond)
+np.argwhere(cond)[-1,0]
+
 ```
 
 ```python
