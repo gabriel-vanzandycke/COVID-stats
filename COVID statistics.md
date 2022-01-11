@@ -85,10 +85,6 @@ covid_death_df = df.groupby(['YEAR', 'AGE'], as_index=False).aggregate({'COVID':
 ```
 
 ```python
-float(df[df['YEAR']==2020]['COVID']+df[df['YEAR']==2020]['OTHER'])
-```
-
-```python
 from matplotlib import pyplot as plt
 from functools import reduce
 
@@ -109,10 +105,14 @@ del df['TOTAL']
 fig, axes = plt.subplots(len(ages)+1, 1, figsize=(10,30))
 fig.suptitle("Belgian death ratio per age group", y=0.89)
 for age, ax in zip(sorted(ages), axes):
+    y = df[(df["YEAR"]==2020) & (df['AGE']==age)][['COVID','OTHER']].values.sum()
+    ax.text(20,y, "level of\n2020", color='gray', horizontalalignment='center')
+    ax.plot([-1,22],[y,y], color='gray', zorder=1)
     ax.set_ylabel(age)
-    df[df['AGE']==age].plot(kind='bar', y=['OTHER', 'COVID'], x='YEAR', ax=ax, stacked=True)
+    df[df['AGE']==age].plot(kind='bar', y=['OTHER', 'COVID'], x='YEAR', ax=ax, stacked=True, zorder=2)
     ax.set_xlabel("")
-    ax.legend(loc='upper center')    
+    ax.legend(loc='upper center')
+
 
 ax = axes[-1]
 df = data.groupby(['YEAR'], as_index=False).aggregate({'COVID':'sum', 'DEATH':'sum', 'TOTAL':'sum'})
@@ -120,17 +120,14 @@ df['OTHER'] = (df['DEATH']-df['COVID'])/df['TOTAL']
 df['COVID'] = df['COVID']/df['TOTAL']
 del df['DEATH']
 del df['TOTAL']
-df.plot(kind='bar', y=['OTHER', 'COVID'], x='YEAR', ax=ax, stacked=True)
+df.plot(kind='bar', y=['OTHER', 'COVID'], x='YEAR', ax=ax, stacked=True, zorder=2)
 ax.set_ylabel("Total Belgian population")
 ax.set_xlabel("")
 ax.legend(loc='upper center')
-```
-
-```python
-cond = 95 > np.array([0,25,45,65,85,200])
-print(cond)
-np.argwhere(cond)[-1,0]
-
+y = df[df["YEAR"]==2020][['COVID','OTHER']].values.sum()
+ax.text(20,y, "level of\n2020", color='gray', horizontalalignment='center')
+ax.plot([-1,22],[y,y], color='gray', zorder=1)
+    
 ```
 
 ```python
