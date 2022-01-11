@@ -127,7 +127,8 @@ ax.legend(loc='upper center')
 y = df[df["YEAR"]==2020][['COVID','OTHER']].values.sum()
 ax.text(20,y, "level of\n2020", color='gray', horizontalalignment='center')
 ax.plot([-1,22],[y,y], color='gray', zorder=1)
-    
+
+fig.savefig("death_age_group.png")
 ```
 
 ```python

@@ -1,2 +1,3 @@
 *.pickle
 *.ipynb
+.ipynb_checkpoints
