@@ -6,7 +6,7 @@ jupyter:
       extension: .md
       format_name: markdown
       format_version: '1.3'
-      jupytext_version: 1.13.4
+      jupytext_version: 1.14.5
   kernelspec:
     display_name: Python 3 (ipykernel)
     language: python
@@ -17,7 +17,7 @@ jupyter:
 import pandas
 import pickle
 import os
-import numpy as n
+#import numpy as np
 
 def read_cached(cache, url, function):
     if os.path.isfile(cache):
@@ -56,10 +56,18 @@ total_death_df = pandas.concat([df1, df2]).groupby(['YEAR', 'AGE'], as_index=Fal
 ```
 
 ```python
+url = "https://statbel.fgov.be/sites/default/files/files/documents/bevolking/5.1%20Structuur%20van%20de%20bevolking/Population_par_commune.xlsx"
+data = {}
+for year in range(2000, 2023):
+    df = read_cached(f"population_par_commune_{year}.pickle", url, lambda url: pandas.read_excel(url, f"Population {year}"))
+    data[year] = df[df['Unnamed: 1'] == 'Belgique'].loc[3][4]
+```
+
+```python
 import numpy as np
 import re
 
-df = pandas.read_csv("/Users/gabriel/Downloads/export.csv")
+#df = pandas.read_csv("/Users/gabriel/Downloads/export.csv")
 df = df[pandas.isna(df['Région'])]
 del df['Région']
 del df['Belgique']
